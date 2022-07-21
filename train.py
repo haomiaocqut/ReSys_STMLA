@@ -389,20 +389,15 @@ class Model(nn.Module):
             avg_distance = torch.cat(list_for_avg_distance, dim = 0).transpose(0,1)
             sessions_represent = torch.cat(list_for_sessions, dim=0).transpose(0,1) ##current_items * history_session_length * embedding_size
             current_session_represent = current_session_represent.unsqueeze(2) ### current_items * embedding_size * 1
-            sims = F.softmax(sessions_represent.bmm(current_session_represent).squeeze(2), dim = 1).unsqueeze(1) ##==> current_items * 1 * history_session_length
-            #out_y_current = sims.bmm(sessions_represent).squeeze(1)
+            sims = F.softmax(sessions_represent.bmm(current_session_represent).squeeze(2)* 1.0/avg_distance, dim = 1).unsqueeze(1) ##==> current_items * 1 * history_session_length
+            out_y_current = sims.bmm(sessions_represent).squeeze(1)
             out_y_current =torch.selu(self.linear1(sims.bmm(sessions_represent).squeeze(1)))
-            ##############layer_2
-            #layer_2_current = (lambda*out_y_current + (1-lambda)*current_session_embed[:sequence_length-1]).unsqueeze(2) #lambda from [0.1-0.9] better performance
-            # layer_2_current = (out_y_current + current_session_embed[:sequence_length-1]).unsqueeze(2)##==>current_items * embedding_size * 1
-            layer_2_current = (0.5 *out_y_current + 0.5 * current_session_embed[:sequence_length - 1]).unsqueeze(2)
-            layer_2_sims =  F.softmax(sessions_represent.bmm(layer_2_current).squeeze(2) * 1.0/avg_distance, dim = 1).unsqueeze(1)##==>>current_items * 1 * history_session_length
-            out_layer_2 = layer_2_sims.bmm(sessions_represent).squeeze(1)
-            out_y_current_padd = Variable(torch.FloatTensor(sequence_size - sequence_length + 1, self.emb_size).zero_(),requires_grad=False).cuda()
+            out_y_current_padd = Variable(torch.FloatTensor(sequence_size - sequence_length + 1, self.emb_size).zero_(),
+                                          requires_grad=False).cuda()
             out_layer_2_list = []
-            out_layer_2_list.append(out_layer_2)
+            out_layer_2_list.append(out_y_current)
             out_layer_2_list.append(out_y_current_padd)
-            out_layer_2 = torch.cat(out_layer_2_list,dim = 0).unsqueeze(0)
+            out_layer_2 = torch.cat(out_layer_2_list, dim=0).unsqueeze(0)
             y_list.append(out_layer_2)
         y = torch.selu(torch.cat(y_list,dim=0))
         out_hie = F.selu(torch.cat(out_hie, dim = 0))
